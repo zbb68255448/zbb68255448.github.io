@@ -1,0 +1,269 @@
+#open服务部署创建及指南
+<small>created by zhangbingbing@baidu.com, 2014-02-11 </small>
+
+##前言：
+	 在ODP一键部署脚本build_env.sh的基础上创建了open一键部署工具，可以一键部署search、open模块等，同时在已有open模块基础上，提供一键创建一个open服务工具。
+
+##open模块一键部署工具：
+
+###下载脚本并执行：###
+1.下载一键部署脚本：</br>
+
+* wget ftp://m1-wise-ttrd32.vm.baidu.com:/home/work/tools/build_env.sh</br>
+* wget ftp://dbl-wise-rdtest10.vm.baidu.com:/home/work/tools/deploy_env.sh</br>
+
+2.执行脚本：</br>
+
+* sh deploy_env.sh [|odp|open]
+
+###使用说明：###
+	由于open模块一键部署是在odp一键部署脚本的基础上创建的，故build_env.sh和deploy_env.sh都得下载，但只执行deploy_env.sh即可，默认不带参数时是部署ODP和OPEN全部，如果想分开部署即分别带上odp或open即可。
+	
+##open服务一键创建工具：
+
+###下载脚本并执行：###
+1.下载脚本：</br>
+
+* wget ftp://dbl-wise-rdtest10.vm.baidu.com:/home/work/tools/make-open-script.zip</br>
+
+2.执行脚本：</br>
+
+* unzip make-open-script.zip </br>
+* sh make_open_service.sh [Servicename] [author]
+
+###使用说明：###
+	运行该脚本时，自己的环境上必须已经部署了open模块，如果没有可以先执行open模块一键部署工具；
+	Servicename命名首字母大写其他小写且必须，如：sh make_open_service Bookshop [bill]，其中author可以不要，默认是当前登录用户。
+	
+
+##open服务参考指南：
+	
+    Open服务是一个提供异步请求数据接口的一个开发平台，比如video（视频轻应用）、coupon（优惠券）和transferapp（inapp数据透传）等服务，都是在open模块开发一个应用接口，通过ral的方式去请求后端，并对数据做一定的处理，最后返回给用户，一般是以json数据的形式返回的，当然也可以有别的数据形式。下面以video视频轻应用服务接口为例进行说明。
+
+###1、	open模块大致涉及到的类 ###
+
+* 如下图所示：</br>
+<img src="./tools/open-guide/openleitu.jpg"  alt="open模块类图"></img> </br>
+		
+*   跟search模块一样，也是由Bootstrap文件做为程序的入口，在Open\_Route里进行路由的设置及会调用Context上下文的Super类去实例化相应服务的Param,Auth,Route类进行相应的路由及url和参数的校验等。新增一个服务当然也要添加相应的controller,action,pageservice和dataservice等，在dataservice里进行请求后端的数据，这里涉及到McPack和RAL两个php扩展模块，一般通过ral的方式去请求后端数据，如果需要的话可能要用mc\_pack\_array2pack方法去解包数据。详见各类源码。
+
+###2、	open模块的路由交互 ###
+
+*  open模块的路由跟search模块是一样的，都是用的AP框架的一套机制，这里说明下主要的交互流程。由webroot/open下的index.php开始进入，由Bootstrap来初始化操作，在Open\_Route里做自定义路由设置，而在Open\_Route里根据URL对上下文做了校验、安全认证等，之后才会进入相应服务的controller及action，即index->Bootstrap->Open\_Route-> Super\_ParamContext->Super\_XXX\_ParamXXX->Super\_AuthContext->Super\_XXX\_AuthXXX->Super\_RouteContext->Super\_XXX\_RouteXXX->Controller\_XXX。
+	
+* 如下时序图所示：</br>
+<img src="./tools/open-guide/openluyoushixutu.jpg"  alt="open模块路由交互图"></img> </br>
+		
+###3、	open模块的MVC交互 ###
+
+*  MVC模式由相应服务的controller导向到相应的action，默认会执行action的execute方法，里面调用会依次调用deal(),logicDeal()和resultDeal()等方法，其中logicDeal()方法要在子类action即ActionGet里进行重写，调用具体的pageservice去进行业务逻辑操作，pageservice调用dataservice，在dataservice里会去调用RAL，以nshead+mcpack的形式去请求数据，如果返回的数据是未解包的，要用McPack接口用的mc\_pack\_array2pack方法去解包，并对最终的数据在service里进行格式化返回。
+	
+* 如下时序图所示：</br>
+<img src="./tools/open-guide/openshixutu.jpg"  alt="open模块MVC交互图"></img> </br>
+		
+	
+###4、	open模块的处理流程 ###
+
+*  以下图中说明了一个open服务的请求数据流程，图中的类都是在新增一个服务时要修改和添加的文件，图中有相应的注释，这里就不多说了。
+	
+* 如下活动图所示：</br>
+<img src="./tools/open-guide/openhuodongtu.jpg"  alt="open模块处理流程图"></img> </br>
+		
+	
+###5、	新增一个服务需要修改及添加的文件list ###
+
+根据以上的流程图，以video为例，新增一个服务需要的文件有：</br>
+1）/home/work/odp/app/open/library/super/video/ParamVideo.php </br>
+&nbsp;&nbsp;&nbsp;&nbsp;该文件新增服务处理参数校验类 </br>
+2）/home/work/odp/app/open/library/super/ParamContext.php </br>
+&nbsp;&nbsp;&nbsp;&nbsp;修改此文件，添加相应的参数校验策略，如 </br>
+
+	case "video":
+		$this->ps = new Super_Video_ParamVideo();
+		break;
+	
+3）/home/work/odp/app/open/library/super/video/AuthVideo.php </br>
+&nbsp;&nbsp;&nbsp;&nbsp;该文件为新增服务安全认证类 </br>
+4）/home/work/odp/app/open/library/super/AuthContext.php </br>
+&nbsp;&nbsp;&nbsp;&nbsp;修改此文件，添加相应的安全校验策略，如 </br>
+	
+		case "video":
+			$this->ac = new Super_Video_AuthVideo();
+			break;
+		
+5）/home/work/odp/app/open/library/super/video/RouteVideo.php </br>
+&nbsp;&nbsp;&nbsp;&nbsp;该文件为新增服务自定义路由类 </br>
+6）/home/work/odp/app/open/library/super/RouteContext.php </br>
+&nbsp;&nbsp;&nbsp;&nbsp;修改此文件，添加相应的路由策略，如 </br>
+
+	case 'video':
+		$this->rs = new Super_Video_RouteVideo();
+		break;
+	
+7）/home/work/odp/app/open/controllers/video.php </br>
+&nbsp;&nbsp;&nbsp;&nbsp;该文件为新增的相应服务的controller </br>
+8）/home/work/odp/app/open/library/super/video/VideoActionSuper.php </br>
+&nbsp;&nbsp;&nbsp;&nbsp;该文件为新增的相应服务的action超类 </br>
+9）/home/work/odp/app/open/actions/video/Get.php </br>
+&nbsp;&nbsp;&nbsp;&nbsp;该文件为新增的相应服务的action子类 </br>
+10）/home/work/odp/app/open/models/service/page/video/GetVideo.php </br>
+&nbsp;&nbsp;&nbsp;&nbsp;该文件为新增的相应服务的pageservice类 </br>
+11）/home/work/odp/app/open/models/service/data/video/Video.php </br>
+&nbsp;&nbsp;&nbsp;&nbsp;该文件为新增的相应服务的dataservice类 </br>
+12）/home/work/odp/app/open/library/open/Route.php </br>
+&nbsp;&nbsp;&nbsp;&nbsp;修改该文件，添加相应的错误码，如 </br>
+
+	define('VIDEO_GET_DATA_ERROR','58221');
+	define('VIDEO_GET_DATA_FAIL','58222');
+	define('VIDEO_DATA_FORMAT_ERROR','58223');
+	
+13）/home/work/odp/conf/app/open/url.conf </br>
+&nbsp;&nbsp;&nbsp;&nbsp;修改该文件，添加相应的url规则，如 </br>
+
+	video:/^\/open\/(video)$/i
+	
+	#video服务
+	[video]
+	[.1]
+	get:1
+	post:0
+	delete:0
+	put:0
+	[.2]
+	get:0
+	post:0
+	delete:0
+	put:0
+	
+14）/home/work/odp/conf/app/open/param.conf </br>
+&nbsp;&nbsp;&nbsp;&nbsp;修改该文件，添加参数校验规则，如 </br>
+	
+	#视频服务
+	[video]
+	[.sid]
+	pattern:/^\d+$/
+	type:string
+	default:2360
+	compulsory:1
+	[.query]
+	pattern:/^.+$/
+	type:string
+	compulsory:1
+	[.srcid]
+	pattern:/^\d+$/
+	type:string
+	compulsory:1
+	[.source]
+	pattern:/^.*$/
+	type:string
+	default:
+	[.season]
+	pattern:/^.*$/
+	type:string
+	default:
+	[.callback]
+	pattern:/^.+$/
+	type:string
+	compulsory:1
+	[.format]
+	pattern:/^[a-zA-Z]+$/
+	type:string
+	default:json
+	#通用参数
+	[.lcid]
+	pattern:/^\w+$/
+	type:string
+	compulsory:1
+	[._method]
+	pattern:/^[a-zA-Z]+$/
+	type:sring
+	default:get
+
+15）/home/work/odp/conf/ral/services/video.conf </br>
+&nbsp;&nbsp;&nbsp;&nbsp;该文件为新增的相应服务的ral请求配置文件，如 </br>
+
+	#整合端ie连接配置文件
+	[CamelConfig]
+	[.ServiceConfig]
+	[..Local]
+	[...@Service]
+	Name : video 
+	DefaultPort :21111  
+	DefaultRetry : 3
+	DefaultConnectType : SHORT 
+	DefaultConnectTimeOut : 100
+	DefaultReadTimeOut : 1000
+	DefaultWriteTimeOut : 1000
+	#test
+	[....@Server]
+	#IP : 10.40.57.49
+	IP : 10.40.60.18
+	Tag : tc
+	#dbl
+	[....@Server]
+	IP : 10.40.60.18
+	Tag : dbl
+	[....@Server]
+	IP : 10.40.60.19
+	Tag : dbl
+	#hz
+	[....@Server]
+	IP : 10.212.120.15
+	Tag : hz
+	[....@Server]
+	IP : 10.212.120.14
+	Tag : hz
+	[....SuperStrategy]
+	Package : CONSISTENCY_PACK
+	#Balance : Random
+	#CrossRoom : Off
+	[....Protocol]
+	Name : nshead
+	[....Converter]
+	Name : mcpack2
+
+&nbsp;&nbsp;&nbsp;&nbsp;Bns配置方式如 </br>
+
+	#整合端ie连接配置文件
+	[CamelConfig]
+	[.ServiceConfig]
+	[..Webfoot]
+	[...@Service]
+	Name: group.inappui.WISE.dbl
+	Rename : transferapp
+	Timeout: 500
+
+16）/home/work/odp/conf/app/open/errno.conf </br>
+&nbsp;&nbsp;&nbsp;&nbsp;修改该文件添加相应服务的错误码的解释，如 </br>
+
+	58221:获取video数据出错或空数据
+	58222:请求video数据失败
+	58223:格式化video数据出错
+
+此外，dataservice里一般都用ral请求，返回的数据可能需要解包处理，如Service\_Data\_Video\_Video类， </br>
+
+Ral请求：</br>
+
+	$ieRalData=ral($this->service,'',$mcpackParams,'',null); 
+	
+Mcpack打包参数： </br>
+		
+	$mcpack['UrlParaPack']=mc_pack_array2pack($data);
+	 	 
+Mcpack解包： </br>
+		
+	$_resitem=mc_pack_pack2array($result[0]['DisplayData']);	
+	
+根据流程图及文件list，就可以开发一个open服务接口了，其中的交互可以参考交互时序图去查看代码。
+
+###6、	参考资料： ###
+* Ral接口：<a href="http://man.baidu.com/inf/odp/ral/" target="_blank">http://man.baidu.com/inf/odp/ral/</a>
+* PHP mc_pack 扩展接口：<a href="http://wiki.babel.baidu.com/twiki/bin/view/Com/Eb/PhpMcpackExtension" target="_blank">http://wiki.babel.baidu.com/twiki/bin/view/Com/Eb/PhpMcpackExtension</a>
+* OPEN文档：<a href="http://ws.baidu.com/#/产品信息/开放数据API/概述" target="_blank">http://ws.baidu.com/#/产品信息/开放数据API/概述</a>
+* Open 测试环境:<a href="http://zhanghuiyun.fe.baidu.com/mco-web/test/open.html" target="_blank">http://zhanghuiyun.fe.baidu.com/mco-web/test/open.html</a>
+	
+	
+
+
+
+
